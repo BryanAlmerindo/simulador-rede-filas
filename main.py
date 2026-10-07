@@ -204,37 +204,54 @@ def simular(config_filas, seed=12345, gerador_a=16807, gerador_c=0, gerador_m=2*
 
 def imprimir_resultados(filas, tempo_global):
     for fila_id, cfg in filas.items():
-        print(f"\nImprimindo resultados da simulacao {fila_id} (G/G/{cfg['num_servidores']}/{cfg['capacidade']})")
+        print(f"\nResultado da {fila_id} (G/G/{cfg['num_servidores']}/{cfg['capacidade']})")
         print("Estado / Tempo acumulado / Probabilidade")
         for i, t in enumerate(cfg["times"]):
-            print(f"{i}: {t} ({100 * t / tempo_global}%)")
+            if t > 0:  # so mostra estados que ocorreram
+                print(f"{i}: {t} ({100 * t / tempo_global}%)")
         print("Clientes perdidos: " + str(cfg["clientes_perdidos"]))
     print("\nTempo global da simulacao: " + str(tempo_global))
 
 
-# Rede de validacao pedida no M6: duas filas em tandem.
-# Para simular outra topologia, e so trocar/editar este dicionario.
+# Rede trabalho
+
 REDE_TANDEM = {
-    "fila1": {
-        "num_servidores": 2,
-        "capacidade": 3,
-        "chegada_min": 1,
-        "chegada_max": 5,
-        "atendimento_min": 4,
-        "atendimento_max": 5,
-        "primeira_chegada": 2.5,
-        "roteamento": {"fila2": 1.0},
-    },
-    "fila2": {
+    "fila1": {                      # G/G/1
         "num_servidores": 1,
+        "capacidade": 100000,
+        "chegada_min": 2,       # chegadas entre 2..4
+        "chegada_max": 4,
+        "atendimento_min": 1,  # atendimento entre 1..2
+        "atendimento_max": 2,
+        "primeira_chegada": 2.0,
+        "roteamento": {"fila2": 0.2, "fila3": 0.8},
+    },
+    "fila2": {                      # G/G/2/5
+        "num_servidores": 2,
         "capacidade": 5,
-        "atendimento_min": 1,
-        "atendimento_max": 3,
-        "roteamento": {},
+        "atendimento_min": 4,
+        "atendimento_max": 6,
+        "roteamento": {"fila1": 0.3, "fila3": 0.5},
+    },
+    "fila3": {                      # G/G/2/10
+        "num_servidores": 2,
+        "capacidade": 10,
+        "atendimento_min": 5,
+        "atendimento_max": 15,
+        "roteamento": {"fila2": 0.7},
     },
 }
 
+def validar_rede(config_filas):
+    for fila_id, cfg in config_filas.items():
+        rot = cfg.get("roteamento", {})
+        if sum(rot.values()) > 1.0 + 1e-9:
+            raise ValueError(f"{fila_id}: soma das probabilidades > 1")
+        for destino in rot:
+            if destino not in config_filas:
+                raise ValueError(f"{fila_id}: destino inexistente '{destino}'")
 
 if __name__ == "__main__":
-    filas, tempo_global = simular(REDE_TANDEM)
+    validar_rede(REDE_TANDEM)
+    filas, tempo_global = simular(REDE_TANDEM, quantidade_aleatorios=100000)
     imprimir_resultados(filas, tempo_global)
